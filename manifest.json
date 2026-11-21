@@ -1,9 +1,9 @@
 {
 	"id": "jw-bible-reading-plan",
 	"name": "JW Bible Reading Plan",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"minAppVersion": "1.5.7",
-	"description": "Create a Bible reading schedule note: four reading modes, equal daily portions, links to JW Library. Estonian, English and Russian.",
+	"description": "Create a Bible reading plan with a compact daily view: tick a whole day or single chapters, pick books and chapters already read. Links to JW Library. Estonian, English and Russian.",
 	"author": "londonspeed",
 	"isDesktopOnly": false
 }

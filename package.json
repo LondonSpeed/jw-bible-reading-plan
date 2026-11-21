@@ -1,6 +1,6 @@
 {
 	"name": "jw-bible-reading-plan",
-	"version": "0.1.1",
+	"version": "0.2.0",
 	"description": "Obsidian plugin: Bible reading schedule with equal daily portions",
 	"main": "main.js",
 	"scripts": {
