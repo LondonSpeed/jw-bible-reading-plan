@@ -12,6 +12,8 @@ export interface PlanSettings {
 	showNotes: boolean; // short chapter notes ("Creation", "The Flood", ...)
 	defaultMode: ModeId;
 	defaultWeeks: number;
+	hideDone: boolean; // plan view: hide days that are completely read
+	openViewAfterCreate: boolean; // open the compact plan view (not the note) after creating a plan
 }
 
 export const DEFAULT_SETTINGS: PlanSettings = {
@@ -23,6 +25,8 @@ export const DEFAULT_SETTINGS: PlanSettings = {
 	showNotes: true,
 	defaultMode: "cover",
 	defaultWeeks: 52,
+	hideDone: false,
+	openViewAfterCreate: true,
 };
 
 export const JW_LOCALES: { code: string; label: string }[] = [
@@ -59,6 +63,8 @@ export class PlanSettingTab extends PluginSettingTab {
 			void this.plugin.saveSettings();
 		};
 
+		new Setting(containerEl).setName("New plans").setHeading();
+
 		new Setting(containerEl)
 			.setName("Plan language")
 			.setDesc("Language of book names, headings and chapter notes in new plan notes.")
@@ -69,6 +75,72 @@ export class PlanSettingTab extends PluginSettingTab {
 					save();
 				});
 			});
+
+		new Setting(containerEl)
+			.setName("Default reading mode")
+			.setDesc("Preselected in the create dialog.")
+			.addDropdown((d) => {
+				(["cover", "chrono", "theme", "jesus"] as ModeId[]).forEach((m, i) => d.addOption(m, TEXT.en.modes[i]));
+				d.setValue(s.defaultMode).onChange((v) => {
+					s.defaultMode = v as ModeId;
+					save();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Default duration (weeks)")
+			.addText((t) => {
+				t.inputEl.type = "number";
+				t.inputEl.min = "1";
+				t.inputEl.max = "200";
+				t.setValue(String(s.defaultWeeks)).onChange((v) => {
+					s.defaultWeeks = Math.min(200, Math.max(1, Math.round(+v) || 52));
+					save();
+				});
+			});
+
+		new Setting(containerEl)
+			.setName("Folder for new plans")
+			.setDesc("Leave empty for the vault root.")
+			.addText((t) =>
+				t.setPlaceholder("Bible").setValue(s.folder).onChange((v) => {
+					s.folder = v.trim();
+					save();
+				})
+			);
+
+		new Setting(containerEl)
+			.setName("Show chapter notes")
+			.setDesc("Add a short note to important chapters, for example “Creation” or “The Flood”.")
+			.addToggle((t) =>
+				t.setValue(s.showNotes).onChange((v) => {
+					s.showNotes = v;
+					save();
+				})
+			);
+
+		new Setting(containerEl).setName("Plan view").setHeading();
+
+		new Setting(containerEl)
+			.setName("Open the plan view after creating a plan")
+			.setDesc("The compact view has one tick per day. Turn off to open the plan as an ordinary note.")
+			.addToggle((t) =>
+				t.setValue(s.openViewAfterCreate).onChange((v) => {
+					s.openViewAfterCreate = v;
+					save();
+				})
+			);
+
+		new Setting(containerEl)
+			.setName("Hide completed days")
+			.addToggle((t) =>
+				t.setValue(s.hideDone).onChange((v) => {
+					s.hideDone = v;
+					save();
+				})
+			);
+
+		new Setting(containerEl).setName("JW Library links").setHeading();
 
 		new Setting(containerEl)
 			.setName("Open verses in JW Library in this language")
@@ -109,35 +181,5 @@ export class PlanSettingTab extends PluginSettingTab {
 						save();
 					})
 			);
-
-		new Setting(containerEl)
-			.setName("Show chapter notes")
-			.setDesc("Add a short note to important chapters, for example “Creation” or “The Flood”.")
-			.addToggle((t) =>
-				t.setValue(s.showNotes).onChange((v) => {
-					s.showNotes = v;
-					save();
-				})
-			);
-
-		new Setting(containerEl)
-			.setName("Folder for new plans")
-			.setDesc("Leave empty for the vault root.")
-			.addText((t) =>
-				t.setPlaceholder("Bible").setValue(s.folder).onChange((v) => {
-					s.folder = v.trim();
-					save();
-				})
-			);
-
-		new Setting(containerEl)
-			.setName("Default reading mode")
-			.addDropdown((d) => {
-				(["cover", "chrono", "theme", "jesus"] as ModeId[]).forEach((m, i) => d.addOption(m, TEXT.en.modes[i]));
-				d.setValue(s.defaultMode).onChange((v) => {
-					s.defaultMode = v as ModeId;
-					save();
-				});
-			});
 	}
 }

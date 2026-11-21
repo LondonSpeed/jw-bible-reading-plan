@@ -291,7 +291,76 @@ export function progressPercent(checks: boolean[], parts: Part[]): number {
 	return Math.round((checks.slice(0, n).filter(Boolean).length * 100) / parts.length);
 }
 
+// ---------- ticking from the plan view ----------
+/** Sets the nth checkbox lines (0-based, same order as parseChecks) to done / not done. */
+export function setChecks(content: string, idx: Iterable<number>, value: boolean): string {
+	const want = new Set(idx);
+	let n = 0;
+	return content
+		.split("\n")
+		.map((line) => {
+			if (!/^\s*- \[[ xX]\] /.test(line)) return line;
+			const i = n++;
+			return want.has(i) ? line.replace(/^(\s*- \[)[ xX](\] )/, (_m, a: string, b: string) => a + (value ? "x" : " ") + b) : line;
+		})
+		.join("\n");
+}
+
+/** 0 = nothing read, 1 = some parts read, 2 = whole day read. */
+export function dayState(checks: boolean[], d: DayGroup): 0 | 1 | 2 {
+	let done = 0;
+	for (let k = 0; k < d.ps.length; k++) if (checks[d.first + k]) done++;
+	return done === 0 ? 0 : done === d.ps.length ? 2 : 1;
+}
+
+export const range = (from: number, to: number): number[] => {
+	const a: number[] = [];
+	for (let i = from; i < to; i++) a.push(i);
+	return a;
+};
+
+const progressRe = () => new RegExp(`^> .*${PROGRESS_MARK.replace(/[-/\\^$*+?.()|[\]{}]/g, "\\$&")}$`, "m");
+
+/** Recalculates the "📖 Progress: …" line of a plan note. Other notes are returned unchanged. */
+export function withProgressLine(data: string): string {
+	const plan = parsePlan(data);
+	if (!plan) return data;
+	const { parts, end } = buildPlan(plan);
+	const line = progressLine(plan, progressPercent(parseChecks(data), parts), end);
+	const re = progressRe();
+	return re.test(data) ? data.replace(re, () => line) : data;
+}
+
+export const hasProgressLine = (data: string) => progressRe().test(data);
+
 // ---------- "already read" input ----------
+export const HEBREW_BOOKS = 39; // books 0..38 = Hebrew Scriptures, 39..65 = Greek Scriptures
+
+/** Global chapter indexes that the reading mode actually contains (the Jesus mode has only some chapters). */
+export const modeChapters = (mode: ModeId): Set<number> => new Set(buildUnits(mode, new Set()).map((u) => u.gi));
+
+/** Books of a mode in reading order, without repeats. */
+export function modeBooks(mode: ModeId): number[] {
+	const seen = new Set<number>();
+	const out: number[] = [];
+	for (const u of buildUnits(mode, new Set())) {
+		if (!seen.has(u.b)) {
+			seen.add(u.b);
+			out.push(u.b);
+		}
+	}
+	return out;
+}
+
+/** Chapters that come before the first chapter of book `b` in the order of the mode. */
+export function chaptersBeforeBook(mode: ModeId, b: number): number[] {
+	const out: number[] = [];
+	for (const u of buildUnits(mode, new Set())) {
+		if (u.b === b) break;
+		out.push(u.gi);
+	}
+	return out;
+}
 const fold = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^\p{L}\p{N}]/gu, "");
 
 let bookMap: Map<string, number> | null = null;
