@@ -1,4 +1,7 @@
-import { buildParts, buildUnits, buildPlan, buildNote, parsePlan, parseChecks, progressPercent, parseExclusions, excludeBeforeBook, partUrl, rangeLabel } from "../src/planner";
+import {
+	buildParts, buildUnits, buildPlan, buildNote, parsePlan, parseChecks, progressPercent, parseExclusions, excludeBeforeBook, partUrl, rangeLabel,
+	setChecks, dayState, withProgressLine, modeChapters, modeBooks, chaptersBeforeBook, range, OFF,
+} from "../src/planner";
 import type { PlanParams } from "../src/planner";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
@@ -79,11 +82,52 @@ for (const lang of ["en", "ru"] as const) {
 	ok(`note in ${lang}`, t.includes("plan-lang: " + lang) && parseChecks(t).length > 50);
 }
 ok("range label single-chapter book", rangeLabel(buildPlan({ ...base, excluded: excludeBeforeBook(62) }).days[0].ps, "en").length > 0);
-// ---- 6. wording check: no terms that do not fit jw.org wording ----------------------------------
+
+// ---- 6. plan view: ticking days and chapters ------------------------------------------------
+const day3 = plan.days[2];
+const marked = setChecks(note, range(day3.first, day3.first + day3.ps.length), true);
+const mc = parseChecks(marked);
+ok("setChecks marks exactly the day's parts", mc.filter(Boolean).length === day3.ps.length && mc.slice(day3.first, day3.first + day3.ps.length).every(Boolean));
+ok("setChecks leaves other lines untouched", marked.split("\n").length === note.split("\n").length && marked.replace(/\[x\]/g, "[ ]") === note);
+ok("dayState all / none", dayState(mc, day3) === 2 && dayState(mc, plan.days[0]) === 0);
+const multi = plan.days.find((d) => d.ps.length > 1);
+if (multi) {
+	const one = parseChecks(setChecks(note, [multi.first], true));
+	ok("dayState partial when only one chapter ticked", dayState(one, multi) === 1);
+}
+const unmarked = setChecks(marked, range(day3.first, day3.first + day3.ps.length), false);
+ok("setChecks can untick again", unmarked === note);
+const crlf = note.replace(/\n/g, "\r\n");
+ok("setChecks works with CRLF notes", parseChecks(setChecks(crlf, [0], true))[0] === true);
+const upTo = parseChecks(setChecks(note, range(0, plan.days[9].first + plan.days[9].ps.length), true));
+ok("mark everything up to day 10", plan.days.slice(0, 10).every((d) => dayState(upTo, d) === 2) && dayState(upTo, plan.days[10]) === 0);
+const withLine = withProgressLine(setChecks(note, range(0, 100), true)); // 100 parts are a few percent of the text
+const m = /Edenemine: (\d+) %/.exec(withLine);
+ok("progress line is recalculated", !!m && +m[1] > 0 && withLine.includes("<!--bible-plan-progress-->"), m ? m[1] : "none");
+ok("withProgressLine ignores other notes", withProgressLine("# hello\n- [ ] x") === "# hello\n- [ ] x");
+
+// ---- 7. book / chapter picker helpers -------------------------------------------------------
+ok("cover mode contains all chapters", modeChapters("cover").size === 1189);
+const jc = modeChapters("jesus");
+ok("jesus mode has only gospels + Acts 1", jc.size === buildUnits("jesus", new Set()).length && [...jc].every((g) => g >= OFF[39] && g < OFF[44] + 1));
+ok("mode books in reading order (jesus starts with Luke)", modeBooks("jesus")[0] === 41);
+ok("chronological order: before Isaiah includes Psalms, not Matthew", (() => {
+	const b = chaptersBeforeBook("chrono", 22);
+	return b.includes(OFF[18]) && !b.includes(OFF[39]);
+})());
+ok("chaptersBeforeBook cover == excludeBeforeBook", chaptersBeforeBook("cover", 39).length === 929);
+const only = buildPlan({ ...base, mode: "cover", excluded: new Set(range(OFF[0], OFF[0] + 50)) });
+ok("excluding all of Genesis starts at Exodus", only.parts[0].b === 1 && only.parts[0].c === 1);
+const partial = buildPlan({ ...base, excluded: new Set([OFF[0] + 4, OFF[0] + 5]) });
+ok("single chapters can be skipped (Gen 5, 6)", !partial.parts.some((p) => p.b === 0 && (p.c === 5 || p.c === 6)) && partial.parts.some((p) => p.b === 0 && p.c === 7));
+
+// ---- 8. wording check: no terms that do not fit jw.org wording ----------------------------------
 import { NOTES, THEMES, TEXT } from "../src/data";
-const allText = [...Object.values(NOTES), ...Object.values(THEMES), ...Object.values(TEXT).flatMap((x) => [x.title, ...x.modes, ...x.mi])].join("\n");
-const banned = /cross|crucif|ristilöö|ristil|на кресте|креста|крестом|(?:^|\s)крест(?:\s|$)|распят|easter|christmas|jõul|рождеств|last supper|wise men|targad|волхв|the fall|inimese langemine|грехопадение|trinity|hell\b/i;
+import { UI } from "../src/ui";
+const allText = [...Object.values(NOTES), ...Object.values(THEMES), ...Object.values(TEXT).flatMap((x) => [x.title, ...x.modes, ...x.mi]), ...Object.values(UI).flatMap((u) => Object.values(u))].join("\n");
+const banned = /cross|crucif|ristilöö|ristil|на кресте|креста|крестом|(?:^|\s)крест(?:\s|$)|распят|easter|christmas|jõul|рождеств|last supper|wise men|targad|волхв|the fall|inimese langemine|грехопадение|trinity|hell\b|old testament|new testament|vana testament|uus testament/i;
 const hit = banned.exec(allText);
-ok("no banned wording in notes/headings", !hit, hit ? hit[0] : "");
+ok("no banned wording in notes/headings/interface", !hit, hit ? hit[0] : "");
+ok("every language has the same interface keys", Object.keys(UI.et).length === Object.keys(UI.en).length && Object.keys(UI.en).length === Object.keys(UI.ru).length);
 console.log(fail ? `${fail} FAILED` : "ALL PASSED");
 process.exit(fail ? 1 : 0);
